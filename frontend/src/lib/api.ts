@@ -168,3 +168,99 @@ export const authApi = {
     apiClient.clearTokens();
   },
 };
+
+// ──────────────────────────────────────────────────
+//  Document API
+// ──────────────────────────────────────────────────
+export interface DocumentData {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentListResponse {
+  success: boolean;
+  data: DocumentData[];
+}
+
+export interface DocumentUploadResponse {
+  success: boolean;
+  data: DocumentData;
+  message: string;
+}
+
+export const documentApi = {
+  /**
+   * Upload a document with progress tracking via XHR
+   */
+  upload: (
+    file: File,
+    onProgress?: (percent: number) => void
+  ): Promise<DocumentUploadResponse> => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('document', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE_URL}/documents/upload`);
+
+      // Set auth header
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      // Track upload progress
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data);
+          } else {
+            reject(new Error(data.error || 'Upload failed'));
+          }
+        } catch {
+          reject(new Error('Failed to parse server response'));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(formData);
+    });
+  },
+
+  /**
+   * Get all documents for the current user
+   */
+  getAll: async (): Promise<DocumentListResponse> => {
+    return apiClient.request<DocumentListResponse>('/documents');
+  },
+
+  /**
+   * Get a single document by ID
+   */
+  getById: async (id: string) => {
+    return apiClient.request<{ success: boolean; data: DocumentData }>(`/documents/${id}`);
+  },
+
+  /**
+   * Delete a document
+   */
+  delete: async (id: string) => {
+    return apiClient.request<{ success: boolean; message: string }>(`/documents/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};

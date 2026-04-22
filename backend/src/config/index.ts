@@ -16,4 +16,18 @@ export const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
+    embeddingModel: 'gemini-embedding-001',
+    generativeModel: 'gemini-1.5-flash',
+    embeddingDimensions: 768,
+  },
+  pinecone: {
+    apiKey: process.env.PINECONE_API_KEY || '',
+    indexName: process.env.PINECONE_INDEX_NAME || 'docreader',
+  },
+  chunking: {
+    chunkSize: parseInt(process.env.CHUNK_SIZE || '500', 10),
+    chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '50', 10),
+  },
 };
