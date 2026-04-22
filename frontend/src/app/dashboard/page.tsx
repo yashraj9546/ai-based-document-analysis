@@ -365,16 +365,27 @@ export default function DashboardPage() {
                       <span className="status-dot" />
                       {doc.status}
                     </span>
-                    <button
-                      className="doc-delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(doc.id, doc.originalName);
-                      }}
-                      title="Delete document"
-                    >
-                      🗑️
-                    </button>
+                    <div className="doc-card-actions">
+                      {doc.status === 'ready' && (
+                        <a
+                          href={`/document/${doc.id}`}
+                          className="doc-chat-btn"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          💬 Ask AI
+                        </a>
+                      )}
+                      <button
+                        className="doc-delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(doc.id, doc.originalName);
+                        }}
+                        title="Delete document"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

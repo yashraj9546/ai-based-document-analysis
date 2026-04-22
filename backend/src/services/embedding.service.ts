@@ -2,28 +2,46 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config';
 
 /**
- * Embedding Service - generates vector embeddings using Google Gemini
- * Uses embedding-001 or text-embedding-004 which has 768 dimensions.
+ * Embedding Service - generates vector embeddings.
+ * Primary: Local Python server (FastEmbed / ONNX)
+ * Secondary: Google Gemini (Fallback)
  */
 export class EmbeddingService {
   private genAI: GoogleGenerativeAI;
   private modelName: string;
+  private localUrl: string;
 
   constructor() {
-    if (!config.gemini.apiKey) {
-      console.warn('⚠️ GEMINI_API_KEY not set — embeddings will fail');
-    }
     this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-    // Ensure the model name has the 'models/' prefix which is sometimes required by the SDK for batching
     this.modelName = config.gemini.embeddingModel.startsWith('models/') 
       ? config.gemini.embeddingModel 
       : `models/${config.gemini.embeddingModel}`;
+    this.localUrl = config.gemini.embeddingServerUrl;
   }
 
   /**
    * Generate embedding for a single text string
    */
   async embedText(text: string): Promise<number[]> {
+    try {
+      // Try local server first
+      const response = await fetch(`${this.localUrl}/embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        return data.embedding;
+      }
+      
+      console.warn('⚠️ Local embedding server returned error, falling back to Gemini');
+    } catch (error) {
+      console.warn('⚠️ Local embedding server unreachable, falling back to Gemini');
+    }
+
+    // Fallback to Gemini
     const model = this.genAI.getGenerativeModel({ model: this.modelName });
     const result = await model.embedContent(text);
     return Array.from(result.embedding.values);
@@ -35,25 +53,40 @@ export class EmbeddingService {
   async embedBatch(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
 
+    try {
+      // Try local server batch endpoint
+      const response = await fetch(`${this.localUrl}/embed-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts }),
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        console.log(`🧠 (Local) Embedded batch of ${texts.length} texts`);
+        return data.embeddings;
+      }
+
+      console.warn('⚠️ Local embedding server batch failed, falling back to Gemini');
+    } catch (error) {
+      console.warn('⚠️ Local embedding server unreachable for batch, falling back to Gemini');
+    }
+
+    // Fallback to Gemini (one by one or batch)
     const model = this.genAI.getGenerativeModel({ model: this.modelName });
-    
-    const BATCH_SIZE = 50; // Smaller batch size for better reliability
+    const BATCH_SIZE = 50;
     const allEmbeddings: number[][] = [];
 
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
       const batch = texts.slice(i, i + BATCH_SIZE);
-      
       try {
         const result = await model.batchEmbedContents({
           requests: batch.map((t) => ({ content: { role: 'user', parts: [{ text: t }] } })),
         });
-
         allEmbeddings.push(...result.embeddings.map(e => Array.from(e.values)));
-        console.log(`🧠 (Gemini) Embedded batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(texts.length / BATCH_SIZE)}`);
+        console.log(`🧠 (Gemini Fallback) Embedded batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(texts.length / BATCH_SIZE)}`);
       } catch (error: any) {
-        console.error('❌ Gemini Batch Embedding Error:', error.message);
-        // Fallback: embed one by one if batch fails
-        console.log('🔄 Falling back to individual embedding for this batch...');
+        // Individual fallback
         for (const text of batch) {
           const emb = await this.embedText(text);
           allEmbeddings.push(emb);

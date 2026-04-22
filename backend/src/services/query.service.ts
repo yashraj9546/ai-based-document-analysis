@@ -1,39 +1,87 @@
 import { prisma } from '../config/database';
 import { QueryResult } from '../types';
+import { chatService, RetrievedContext } from './chat.service';
+
+/**
+ * Extended query result that includes RAG metadata
+ */
+export interface QueryResultWithSources extends QueryResult {
+  sources?: RetrievedContext[];
+  model?: string;
+  tokensUsed?: number;
+}
 
 /**
  * Query Service - handles document Q&A business logic
+ * Now integrated with the RAG pipeline for AI-powered answers
  */
 export class QueryService {
   /**
-   * Create a new query for a document
+   * Create a new query for a document and generate an AI answer via RAG
    */
   async createQuery(
     question: string,
     documentId: string,
     userId: string
-  ): Promise<QueryResult> {
+  ): Promise<QueryResultWithSources> {
+    // 1. Create the query record with "processing" status
     const query = await prisma.query.create({
       data: {
         question,
         documentId,
         userId,
-        status: 'pending',
+        status: 'processing',
       },
     });
 
-    // TODO: In the next step, we'll integrate an AI service here
-    // to process the question against the document content
-    // For now, we'll return a placeholder
+    try {
+      // 2. Run the RAG pipeline: embed → search → generate
+      const chatResponse = await chatService.answerQuestion(
+        question,
+        userId,
+        documentId
+      );
 
-    return {
-      id: query.id,
-      question: query.question,
-      answer: query.answer,
-      status: query.status,
-      documentId: query.documentId,
-      createdAt: query.createdAt,
-    };
+      // 3. Save the AI answer back to the database
+      const updatedQuery = await prisma.query.update({
+        where: { id: query.id },
+        data: {
+          answer: chatResponse.answer,
+          status: 'completed',
+        },
+      });
+
+      return {
+        id: updatedQuery.id,
+        question: updatedQuery.question,
+        answer: updatedQuery.answer,
+        status: updatedQuery.status,
+        documentId: updatedQuery.documentId,
+        createdAt: updatedQuery.createdAt,
+        sources: chatResponse.sources,
+        model: chatResponse.model,
+        tokensUsed: chatResponse.tokensUsed,
+      };
+    } catch (error: any) {
+      // Mark query as failed and re-throw
+      console.error('❌ RAG pipeline failed:', error.message);
+      await prisma.query.update({
+        where: { id: query.id },
+        data: {
+          answer: `Error: ${error.message}`,
+          status: 'error',
+        },
+      });
+
+      return {
+        id: query.id,
+        question: query.question,
+        answer: `Error generating answer: ${error.message}`,
+        status: 'error',
+        documentId: query.documentId,
+        createdAt: query.createdAt,
+      };
+    }
   }
 
   /**

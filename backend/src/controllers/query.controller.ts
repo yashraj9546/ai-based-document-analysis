@@ -21,18 +21,38 @@ export class QueryController {
         throw new ApiError(400, 'Question is required');
       }
 
-      // Verify document exists
+      // Verify document exists and belongs to this user
       const document = await documentService.getDocumentById(documentId);
       if (!document) {
         throw new ApiError(404, 'Document not found');
+      }
+      if (document.userId !== userId) {
+        throw new ApiError(403, 'You do not have access to this document');
+      }
+      if (document.status !== 'ready') {
+        throw new ApiError(400, `Document is not ready for queries (current status: "${document.status}"). Please wait for processing to complete.`);
       }
 
       const result = await queryService.createQuery(question.trim(), documentId, userId);
 
       res.status(201).json({
         success: true,
-        data: result,
-        message: 'Query submitted successfully',
+        data: {
+          id: result.id,
+          question: result.question,
+          answer: result.answer,
+          status: result.status,
+          documentId: result.documentId,
+          createdAt: result.createdAt,
+          sources: result.sources?.map((s) => ({
+            text: s.text.substring(0, 200) + (s.text.length > 200 ? '...' : ''),
+            score: Math.round(s.score * 100) / 100,
+            originalName: s.originalName,
+            chunkIndex: s.chunkIndex,
+          })),
+          model: result.model,
+        },
+        message: 'Query answered successfully',
       });
     } catch (error) {
       next(error);

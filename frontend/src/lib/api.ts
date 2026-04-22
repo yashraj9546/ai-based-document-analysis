@@ -264,3 +264,61 @@ export const documentApi = {
     });
   },
 };
+
+// ──────────────────────────────────────────────────
+//  Query / Chat API
+// ──────────────────────────────────────────────────
+export interface QuerySource {
+  text: string;
+  score: number;
+  originalName: string;
+  chunkIndex: number;
+}
+
+export interface QueryData {
+  id: string;
+  question: string;
+  answer: string | null;
+  status: string;
+  documentId: string;
+  createdAt: string;
+  sources?: QuerySource[];
+  model?: string;
+}
+
+export interface QueryResponse {
+  success: boolean;
+  data: QueryData;
+  message: string;
+}
+
+export interface QueryListResponse {
+  success: boolean;
+  data: QueryData[];
+}
+
+export const queryApi = {
+  /**
+   * Ask a question about a specific document
+   */
+  ask: async (documentId: string, question: string): Promise<QueryResponse> => {
+    return apiClient.request<QueryResponse>(`/documents/${documentId}/queries`, {
+      method: 'POST',
+      body: { question },
+    });
+  },
+
+  /**
+   * Get all queries for a document
+   */
+  getByDocument: async (documentId: string): Promise<QueryListResponse> => {
+    return apiClient.request<QueryListResponse>(`/documents/${documentId}/queries`);
+  },
+
+  /**
+   * Get a single query by ID
+   */
+  getById: async (queryId: string): Promise<{ success: boolean; data: QueryData }> => {
+    return apiClient.request<{ success: boolean; data: QueryData }>(`/queries/${queryId}`);
+  },
+};
