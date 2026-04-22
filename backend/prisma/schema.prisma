@@ -1,0 +1,56 @@
+// Prisma Schema for AI Document Reader
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  password  String
+  name      String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  documents Document[]
+  queries   Query[]
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  content      String?  // Extracted text content from the document
+  status       String   @default("uploaded") // uploaded | processing | ready | error
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  queries      Query[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Query {
+  id         String   @id @default(uuid())
+  question   String
+  answer     String?
+  status     String   @default("pending") // pending | processing | completed | error
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([userId])
+}
