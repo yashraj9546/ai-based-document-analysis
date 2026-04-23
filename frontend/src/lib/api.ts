@@ -1,4 +1,20 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const getApiBaseUrl = () => {
+  let url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  
+  // Remove trailing slash
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+
+  // Automatically append /api if missing (common deployment mistake)
+  if (!url.endsWith('/api')) {
+    url = `${url}/api`;
+  }
+  
+  return url;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface RequestOptions {
   method?: string;

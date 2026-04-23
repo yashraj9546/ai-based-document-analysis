@@ -21,9 +21,27 @@ app.use('/api', routes);
 // ─── Root ────────────────────────────────────────────────────
 app.get('/', (_req, res) => {
   res.json({
-    name: 'AI Document Reader API',
+    success: true,
+    message: 'AI Document Reader API is running',
     version: '1.0.0',
-    docs: '/api/health',
+    endpoints: {
+      auth: '/api/auth',
+      documents: '/api/documents',
+      queries: '/api/queries',
+      health: '/api/health',
+    },
+    status: 'online',
+  });
+});
+
+// ─── 404 Handler ─────────────────────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `Route ${req.method} ${req.url} not found`,
+    message: req.url.startsWith('/api') 
+      ? 'The requested API endpoint does not exist.' 
+      : 'API endpoints are prefixed with /api. Try adding /api to your request path.',
   });
 });
 
