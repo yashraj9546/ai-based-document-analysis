@@ -44,23 +44,31 @@ export class EmbeddingService {
     }
 
     // Fallback to Gemini
-    console.log(`🧠 (Gemini) Requesting 768-dim embedding from: models/text-embedding-004`);
+    const modelId = "gemini-embedding-001";
+    console.log(`🧠 (Gemini) Requesting embedding from: models/${modelId}`);
     try {
-      const model = this.genAI.getGenerativeModel({ model: "text-embedding-004" });
+      const model = this.genAI.getGenerativeModel({ model: modelId });
+      
+      // Use TaskType.RETRIEVAL_QUERY for better query embeddings
       const result = await model.embedContent({
         content: { role: 'user', parts: [{ text }] },
-        outputDimensionality: 768,
+        taskType: 'RETRIEVAL_QUERY' as any,
       });
       
       let embedding = Array.from(result.embedding.values);
       
-      // Safety check: if it still returns more than 768, truncate it
-      if (embedding.length > 768) {
-        console.warn(`⚠️ Gemini returned ${embedding.length} dims, truncating to 768`);
-        embedding = embedding.slice(0, 768);
+      // Force dimension to 768 (Pinecone index requirement)
+      if (embedding.length !== 768) {
+        console.warn(`⚠️ Gemini returned ${embedding.length} dims, adjusting to 768`);
+        if (embedding.length > 768) {
+          embedding = embedding.slice(0, 768);
+        } else {
+          // Pad with zeros if somehow smaller
+          while (embedding.length < 768) embedding.push(0);
+        }
       }
       
-      console.log(`🧠 (Gemini) Final embedding dimension: ${embedding.length}`);
+      console.log(`🧠 (Gemini) Final vector dimension: ${embedding.length}`);
       return embedding;
     } catch (error: any) {
       console.error('❌ Gemini embedding failed:', error.message);
@@ -104,14 +112,17 @@ export class EmbeddingService {
         const result = await model.batchEmbedContents({
           requests: batch.map((t) => ({ 
             content: { role: 'user', parts: [{ text: t }] },
-            model: "models/text-embedding-004",
-            outputDimensionality: 768 
+            model: "models/gemini-embedding-001",
+            taskType: 'RETRIEVAL_DOCUMENT' as any,
           })),
         });
         
         const embeddings = result.embeddings.map(e => {
           let values = Array.from(e.values);
           if (values.length > 768) values = values.slice(0, 768);
+          if (values.length < 768) {
+             while (values.length < 768) values.push(0);
+          }
           return values;
         });
         

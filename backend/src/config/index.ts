@@ -18,7 +18,7 @@ export const config = {
   },
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
-    embeddingModel: 'text-embedding-004',
+    embeddingModel: 'gemini-embedding-001',
     generativeModel: 'gemini-2.0-flash',
     embeddingDimensions: 768,
     embeddingServerUrl: process.env.EMBEDDING_SERVER_URL || 'http://localhost:5100',
