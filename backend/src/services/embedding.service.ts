@@ -44,12 +44,28 @@ export class EmbeddingService {
     }
 
     // Fallback to Gemini
-    console.log(`🧠 (Gemini) Requesting embedding from: ${this.modelName}`);
-    const model = this.genAI.getGenerativeModel({ model: this.modelName });
-    const result = await model.embedContent(text);
-    const embedding = Array.from(result.embedding.values);
-    console.log(`🧠 (Gemini) Generated embedding with dimension: ${embedding.length}`);
-    return embedding;
+    console.log(`🧠 (Gemini) Requesting 768-dim embedding from: models/text-embedding-004`);
+    try {
+      const model = this.genAI.getGenerativeModel({ model: "text-embedding-004" });
+      const result = await model.embedContent({
+        content: { role: 'user', parts: [{ text }] },
+        outputDimensionality: 768,
+      });
+      
+      let embedding = Array.from(result.embedding.values);
+      
+      // Safety check: if it still returns more than 768, truncate it
+      if (embedding.length > 768) {
+        console.warn(`⚠️ Gemini returned ${embedding.length} dims, truncating to 768`);
+        embedding = embedding.slice(0, 768);
+      }
+      
+      console.log(`🧠 (Gemini) Final embedding dimension: ${embedding.length}`);
+      return embedding;
+    } catch (error: any) {
+      console.error('❌ Gemini embedding failed:', error.message);
+      throw error;
+    }
   }
 
   /**
@@ -86,10 +102,21 @@ export class EmbeddingService {
       const batch = texts.slice(i, i + BATCH_SIZE);
       try {
         const result = await model.batchEmbedContents({
-          requests: batch.map((t) => ({ content: { role: 'user', parts: [{ text: t }] } })),
+          requests: batch.map((t) => ({ 
+            content: { role: 'user', parts: [{ text: t }] },
+            model: "models/text-embedding-004",
+            outputDimensionality: 768 
+          })),
         });
-        allEmbeddings.push(...result.embeddings.map(e => Array.from(e.values)));
-        console.log(`🧠 (Gemini Fallback) Embedded batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(texts.length / BATCH_SIZE)}`);
+        
+        const embeddings = result.embeddings.map(e => {
+          let values = Array.from(e.values);
+          if (values.length > 768) values = values.slice(0, 768);
+          return values;
+        });
+        
+        allEmbeddings.push(...embeddings);
+        console.log(`🧠 (Gemini Fallback) Embedded batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(texts.length / BATCH_SIZE)} (Dim: ${embeddings[0]?.length})`);
       } catch (error: any) {
         // Individual fallback
         for (const text of batch) {
