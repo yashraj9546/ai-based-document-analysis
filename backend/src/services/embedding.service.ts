@@ -33,6 +33,8 @@ export class EmbeddingService {
 
       if (response.ok) {
         const data: any = await response.json();
+        const dim = data.embedding.length;
+        console.log(`🧠 (Local) Generated embedding with dimension: ${dim}`);
         return data.embedding;
       }
       
@@ -42,9 +44,12 @@ export class EmbeddingService {
     }
 
     // Fallback to Gemini
+    console.log(`🧠 (Gemini) Requesting embedding from: ${this.modelName}`);
     const model = this.genAI.getGenerativeModel({ model: this.modelName });
     const result = await model.embedContent(text);
-    return Array.from(result.embedding.values);
+    const embedding = Array.from(result.embedding.values);
+    console.log(`🧠 (Gemini) Generated embedding with dimension: ${embedding.length}`);
+    return embedding;
   }
 
   /**
